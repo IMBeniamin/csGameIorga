@@ -1,0 +1,219 @@
+﻿<Window x:Class="csGameIorga.Messenger"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:csGameIorga"
+        mc:Ignorable="d"
+        Title="Messenger"
+        Height="450"
+        Width="600"
+        Closed="Window_OnClosed">
+    <Window.Resources>
+        <Style TargetType="TextBox"
+               x:Key="port">
+            <Setter Property="MinWidth"
+                    Value="50" />
+            <Setter Property="HorizontalAlignment"
+                    Value="Center" />
+            <Setter Property="TextAlignment"
+                    Value="Center" />
+            <Setter Property="MaxLength"
+                    Value="5" />
+            <Setter Property="Background"
+                    Value="#03396c" />
+            <Setter Property="BorderThickness"
+                    Value="0" />
+            <Setter Property="Foreground"
+                    Value="#6497b1" />
+        </Style>
+        <Style TargetType="TextBox"
+               x:Key="ip">
+            <Setter Property="MinWidth"
+                    Value="150" />
+            <Setter Property="HorizontalAlignment"
+                    Value="Center" />
+            <Setter Property="TextAlignment"
+                    Value="Center" />
+            <Setter Property="MaxLength"
+                    Value="15" />
+            <Setter Property="Background"
+                    Value="#03396c" />
+            <Setter Property="BorderThickness"
+                    Value="0" />
+            <Setter Property="Foreground"
+                    Value="#6497b1" />
+        </Style>
+        <Style TargetType="TextBox"
+               x:Key="generic_input">
+            <Setter Property="MinWidth"
+                    Value="300" />
+            <Setter Property="HorizontalAlignment"
+                    Value="Center" />
+            <Setter Property="TextAlignment"
+                    Value="Center" />
+            <Setter Property="MaxLength"
+                    Value="30" />
+            <Setter Property="Background"
+                    Value="#03396c" />
+            <Setter Property="BorderThickness"
+                    Value="0" />
+            <Setter Property="Foreground"
+                    Value="#6497b1" />
+        </Style>
+        <Style TargetType="Label"
+               x:Key="ip_label">
+            <Setter Property="HorizontalAlignment"
+                    Value="Center" />
+            <Setter Property="FontSize"
+                    Value="14" />
+            <Setter Property="Foreground"
+                    Value="#6497b1" />
+        </Style>
+        <Style TargetType="Label"
+               x:Key="port_label">
+            <Setter Property="HorizontalAlignment"
+                    Value="Center" />
+            <Setter Property="FontSize"
+                    Value="14" />
+            <Setter Property="Foreground"
+                    Value="#6497b1" />
+        </Style>
+        <Style TargetType="Label"
+               x:Key="generic_label">
+            <Setter Property="HorizontalAlignment"
+                    Value="Center" />
+            <Setter Property="FontSize"
+                    Value="14" />
+            <Setter Property="Foreground"
+                    Value="#6497b1" />
+        </Style>
+    </Window.Resources>
+    <Grid Background="#011f4b">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="20" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="20" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="20" />
+            <RowDefinition Height="3*" />
+            <RowDefinition Height="3*" />
+            <RowDefinition Height="1*" />
+            <RowDefinition Height="20" />
+        </Grid.RowDefinitions>
+        <Grid Name="receiveData"
+              Grid.Row="1"
+              Grid.Column="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <ScrollViewer VerticalScrollBarVisibility="Hidden"
+                          Grid.Column="0"
+                          Grid.Row="0"
+                          Grid.ColumnSpan="1">
+                <TextBox Padding="5"
+                         x:Name="m_logger"
+                         FontSize="14"
+                         Background="#03396c"
+                         Foreground="	#b3cde0"
+                         BorderThickness="0"
+                         Text="{Binding Text, Mode=OneWay}"
+                         IsReadOnly="True"
+                         TextWrapping="Wrap"
+                         Focusable="False"></TextBox>
+            </ScrollViewer>
+        </Grid>
+        <ScrollViewer Grid.Row="2"
+                      Grid.Column="1"
+                      VerticalScrollBarVisibility="Hidden"
+                      HorizontalScrollBarVisibility="Hidden">
+            <Grid Name="addressSetup">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <StackPanel Grid.Column="0">
+                    <Label Style="{StaticResource ip_label}"
+                           Content="IP Locale" />
+                    <TextBox Style="{StaticResource ip}"
+                             x:Name="_localIp"
+                             LostFocus="UpdateLocalEndPoint"
+                             Text="0.0.0.0" />
+                    <Label Style="{StaticResource port_label}"
+                           Content="Porta Locale" />
+                    <TextBox Style="{StaticResource port}"
+                             x:Name="_localPort"
+                             LostFocus="UpdateLocalEndPoint"
+                             Text="5000" />
+                </StackPanel>
+                <StackPanel Grid.Column="1">
+                    <Label Style="{StaticResource ip_label}"
+                           Content="IP Remoto" />
+                    <TextBox Style="{StaticResource ip}"
+                             x:Name="_remoteIp"
+                             LostFocus="UpdateRemoteEndPoint"
+                             Text="127.0.0.1" />
+                    <Label Style="{StaticResource port_label}"
+                           Content="Porta Remota" />
+                    <TextBox Style="{StaticResource port}"
+                             x:Name="_remotePort"
+                             LostFocus="UpdateRemoteEndPoint"
+                             Text="5000" />
+                </StackPanel>
+                <StackPanel Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2">
+                    <Label Style="{StaticResource generic_label}"
+                           Content="Nickname" />
+                    <TextBox Style="{StaticResource generic_input}"
+                             x:Name="_nickname"
+                             LostFocus="Nickname_leave"
+                             Text="Guest" />
+                </StackPanel>
+            </Grid>
+        </ScrollViewer>
+        <Grid Name="sendData"
+              Grid.Row="3"
+              Grid.Column="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="6*" />
+                <ColumnDefinition Width="2*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <ScrollViewer VerticalScrollBarVisibility="Hidden">
+                <TextBox Background="#03396c"
+                         Foreground="#b3cde0"
+                         TextWrapping="Wrap"
+                         Grid.Column="0"
+                         x:Name="m_userInput"
+                         Width="auto"
+                         Padding="5"
+                         AcceptsReturn="True"
+                         AcceptsTab="True"
+                         FontSize="14"
+                         BorderThickness="0"
+                         MaxLength="4000"></TextBox>
+            </ScrollViewer>
+            <Button Grid.Column="1"
+                    x:Name="m_sendButton"
+                    Background="#005b96"
+                    BorderThickness="0"
+                    Click="SendData"
+                    ClickMode="Press"
+                    Width="auto"
+                    FontSize="26"
+                    Foreground="#b3cde0">
+                Send
+
+            </Button>
+        </Grid>
+    </Grid>
+</Window>
