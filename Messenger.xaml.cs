@@ -1,25 +1,54 @@
 ﻿using System;
 using System.Net;
 using System.Numerics;
+using System.Text.RegularExpressions;
 using System.Windows;
 
 namespace csGameIorga
 {
-    public class Command
+    public class Move : Command
+    {
+        public Vector2 Coordinates;
+        public Move(string rawData)
+            : base(rawData)
+        {
+            var pattern = new Regex(@"(?<x>\d+);(?<y>\d+)", RegexOptions.IgnoreCase);
+            foreach (Match match in pattern.Matches(rawData))
+            {
+                GroupCollection groups = match.Groups;
+                this.Coordinates = new Vector2(int.Parse(groups["x"].Value), int.Parse(groups["y"].Value));
+            }
+        }
+    }
+    public class Ping : Command
+    {
+        public Vector2 Coordinates;
+        public Ping(string rawData)
+            : base(rawData)
+        {
+            var pattern = new Regex(@"(?<x>\d+);(?<y>\d+)", RegexOptions.IgnoreCase);
+            foreach (Match match in pattern.Matches(rawData))
+            {
+                GroupCollection groups = match.Groups;
+                this.Coordinates = new Vector2(int.Parse(groups["x"].Value), int.Parse(groups["y"].Value));
+            }
+        }
+    }
+    public class Command // TODO: update all usages of Command to match new abstractions
     {
         public string Nickname;
-        public string Padding;
-        public Vector2 Coordinates;
-        public string Type;
+        public string CommandStr;
+        protected string Data;
         public Command(string rawData)
         {
-            var splitData = rawData.Split(";");
-            Nickname = splitData[0];
-            Padding = splitData[1];
-            var x  = int.Parse(splitData[2]);
-            var y = int.Parse(splitData[3]);
-            Type = splitData.Length >= 5 ? splitData[4] : "Move";
-            Coordinates = new Vector2(x, y);
+            var pattern = new Regex(@"(?<name>\w+);(?<command>\w+);(?<data>.+)", RegexOptions.IgnoreCase);
+            foreach (Match match in pattern.Matches(rawData))
+            {
+                GroupCollection groups = match.Groups;
+                this.Nickname = groups["name"].Value;
+                this.CommandStr = groups["command"].Value;
+                this.Data = groups["data"].Value;
+            }
         }
     }
     /// <summary>
