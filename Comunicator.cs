@@ -14,21 +14,36 @@ namespace csGameIorga;
 
 public class Comunicator
 {
-
-    internal IPEndPoint localEndPoint;
-    internal IPEndPoint remoteEndPoint;
+    // EndPoints should only be updated through Update...EndPoint
+    // TODO: The update method should be implemented as a set in the propriety
+    //       Check listen for conflicts
+    public IPEndPoint localEndPoint
+    {
+        get;
+        set;
+    }
+    public IPEndPoint remoteEndPoint
+    {
+        get;
+        set;
+    }
     private string nick;
-    internal string Nickname
+    public string Nickname
     {
         set { nick = value; _formHook.UpdateNickname(value); LogMessage($"Set nickname to {value}\n"); }
         get { return nick; }
     }
+    private bool flag;
     private readonly Messenger _formHook;
     private CancellationTokenSource _listenerCts;
     private CancellationTokenSource _senderCts;
     private Task? _listenerTask;
     private Task<int>? _sendTask;
 
+    // used for loop detection on other end
+    private static readonly TimeSpan _minDeltaT = new TimeSpan(0, 0, 0, 0, 150); // minimum time that should pass between pings
+    private DateTime? _lastPing;
+    private IPEndPoint? _lastInterloc;
     // private readonly int _portSwitchMaxAttempts;
     // private int _portSwitchAttempts;
 
@@ -79,7 +94,7 @@ public class Comunicator
             if (Messenger.commandsMap.TryGetValue(command.ToUpper(), out var generator))
                 _formHook.Execute(generator(nickname, command, rawData), sender);
             else
-                throw new ();
+                throw new InvalidDataException("Command does not exist!");
         }
         catch (Exception)
         {
@@ -90,12 +105,30 @@ public class Comunicator
 
     private async Task _Send(string message)
     {
-        //var sendBuffer = Encoding.ASCII.GetBytes(message);
-        //var sendClient = new UdpClient();
-        //var sentBytes = await sendClient.SendAsync(sendBuffer, remoteEndPoint, _senderCts.Token);
-        //sendClient.Close();
-        var sentBytes = await Comunicator.Send(message, remoteEndPoint);
-        this.LogMessage($"Sent {sentBytes} bytes to {remoteEndPoint}!\n");
+        try
+        {
+            var pattern = new Regex(@"(?<name>\w+);(?<command>\w+);(?<data>.+)", RegexOptions.IgnoreCase);
+            var matches = pattern.Matches(message);
+            if (matches.Count <= 0)
+                throw new InvalidDataException("Provided data could not be parsed!");
+            GroupCollection groups = matches[0].Groups;
+            var nickname = groups["name"].Value;
+            var command = groups["command"].Value;
+            var rawData = groups["data"].Value;
+            if (command.ToUpper() == "PING")
+            {
+                this.raisePingFlag();
+                this.LogMessage($"Sending ping to {this.remoteEndPoint}\n");
+            }
+        }
+        catch (Exception)
+        { }
+        finally
+        {
+            _sendTask = Send(message, remoteEndPoint);
+            var sentBytes = await Comunicator.Send(message, remoteEndPoint);
+            this.LogMessage($"Sent {sentBytes} bytes to {remoteEndPoint}!\n");
+        }
     }
     public static async Task<int> Send(string message, IPEndPoint remoteEndPoint)
     {
@@ -148,9 +181,30 @@ public class Comunicator
 
     public async void Send(string message)
     {
-        _sendTask = Send(message, remoteEndPoint);
-        var sentBytes = await _sendTask;
-        this.LogMessage($"Sent {sentBytes} bytes to {remoteEndPoint}!\n");
+        try
+        {
+            var pattern = new Regex(@"(?<name>\w+);(?<command>\w+);(?<data>.+)", RegexOptions.IgnoreCase);
+            var matches = pattern.Matches(message);
+            if (matches.Count <= 0)
+                throw new InvalidDataException("Provided data could not be parsed!");
+            GroupCollection groups = matches[0].Groups;
+            var nickname = groups["name"].Value;
+            var command = groups["command"].Value;
+            var rawData = groups["data"].Value;
+            if (command.ToUpper() == "PING")
+            {
+                this.raisePingFlag();
+                this.LogMessage($"Sending ping to {this.remoteEndPoint}\n");
+            }
+        }
+        catch (Exception)
+        {}
+        finally
+        {
+            _sendTask = Send(message, remoteEndPoint);
+            var sentBytes = await _sendTask;
+            this.LogMessage($"Sent {sentBytes} bytes to {remoteEndPoint}!\n");
+        }
     }
 
     public void Listen(IPEndPoint newEndPoint)
@@ -213,4 +267,22 @@ public class Comunicator
         if (_listenerTask != null)
             _listenerCts.Cancel();
     }
+
+    public void raisePingFlag() { this.flag = true; }
+    public void lowerPingFlag() { this.flag = false; }
+    public void flipPingFlag() { this.flag = !this.flag; }
+    public bool pingFlag() { return this.flag; }
+    public bool loopDetector(IPEndPoint interlocutor, out TimeSpan? t_delta)
+    {
+        if (this._lastPing == null && this._lastInterloc == null)
+        {
+            this._lastInterloc = interlocutor;
+            this._lastPing = DateTime.Now;
+            t_delta = null;
+            return false;
+        }
+        t_delta = DateTime.Now.Subtract((DateTime)this._lastPing);
+        return t_delta <= Comunicator._minDeltaT;
+    }
+
 }

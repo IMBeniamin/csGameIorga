@@ -58,7 +58,10 @@ namespace csGameIorga
         }
         public override string Execute(Board board, Comunicator comunicator, IPEndPoint sender)
         {
-            return board.Move(this.Coordinates);
+            var status = board.Move(this.Coordinates);
+            comunicator.LogMessage($"{(status.Length < 1 ? "Succeeded" : "Failed")} to run <Move> command with vector " +
+                   $"{this.Coordinates} sent by {this.Nickname}({sender}){(status.Length < 1 ? "" : " because of <" + status + ">")}\n");
+            return status;
         }
     }
     public class Ping : ICommand
@@ -78,12 +81,25 @@ namespace csGameIorga
         public override string Execute(Board board, Comunicator comunicator, IPEndPoint sender)
         {
             var status = "";
-            var ep = new IPEndPoint(sender.Address, sender.Port);
-            var sendTask = Comunicator.Send($"{comunicator.Nickname};PING;{message}", ep);
-            var sentBytes = sendTask.Result;
-            comunicator.LogMessage($"Ping'd {sender.ToString()} with {sentBytes} bytes!\n");
-            if (sentBytes == 0)
-                status = "No data sent!";
+            comunicator.flipPingFlag();
+            if (comunicator.loopDetector(sender, out var t_delta))
+            {
+                comunicator.LogMessage($"Detected possible loop! Interlocutor might not have a check in place. Disabling ping response!" +
+                $"\n    Time delta from last ping is {t_delta}\n");
+            };
+            if (comunicator.pingFlag())
+            {
+                comunicator.LogMessage($"Received ping from ({this.Nickname}){sender}! Sending response...\n");
+                var ep = new IPEndPoint(sender.Address, comunicator.remoteEndPoint.Port);
+                var sendTask = Comunicator.Send($"{comunicator.Nickname};PING;{message}", ep);
+                var sentBytes = sendTask.Result;
+                comunicator.lowerPingFlag();
+                if (sentBytes == 0) status = "No data sent!";
+            }
+            else
+            {
+                comunicator.LogMessage($"Received ping response from {sender}\n");
+            }
             return status;
         }
     }
@@ -188,8 +204,6 @@ namespace csGameIorga
         public void Execute(ICommand command, IPEndPoint sender)
         {
             var status = command.Execute(_board, _comunicator, sender);
-            Logger($"{(status.Length < 1 ? "Succeeded" : "Failed")} to run <{command.CommandStr}> command with the following data: " +
-                   $"<{command.Data}> sent by {command.Nickname}({sender}){(status.Length < 1 ? "" : " because of <" + status + ">")}\n");
         }
         
         public void Logger(string message)
