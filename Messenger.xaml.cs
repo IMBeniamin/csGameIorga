@@ -80,8 +80,8 @@ namespace csGameIorga
             var status = "";
             var ep = new IPEndPoint(sender.Address, sender.Port);
             var sendTask = Comunicator.Send($"{comunicator.Nickname};PING;{message}", ep);
-            sendTask.Wait();
             var sentBytes = sendTask.Result;
+            comunicator.LogMessage($"Ping'd {sender.ToString()} with {sentBytes} bytes!\n");
             if (sentBytes == 0)
                 status = "No data sent!";
             return status;

@@ -20,14 +20,14 @@ public class Comunicator
     private string nick;
     internal string Nickname
     {
-        set { nick = value; _formHook.UpdateNickname(value); LogMessage($"Set nickname to {value}"); }
+        set { nick = value; _formHook.UpdateNickname(value); LogMessage($"Set nickname to {value}\n"); }
         get { return nick; }
     }
     private readonly Messenger _formHook;
     private CancellationTokenSource _listenerCts;
     private CancellationTokenSource _senderCts;
     private Task? _listenerTask;
-    private Task? _sendTask;
+    private Task<int>? _sendTask;
 
     // private readonly int _portSwitchMaxAttempts;
     // private int _portSwitchAttempts;
@@ -49,13 +49,13 @@ public class Comunicator
         UpdateRemoteEndPoint(new IPEndPoint(IPAddress.Parse(remoteIp), remotePort));
     }
 
-    private void LogMessage(string message)
+    public void LogMessage(string message)
     {
         // In order to access proprieties of the form thread the caller needs to be on the same thread
         Application.Current.Dispatcher.Invoke(() => _formHook.Logger(message));
     }
 
-    private void LogMessage(string message, IPEndPoint sender)
+    public void LogReceive(string message, IPEndPoint sender)
     {
         // In order to access proprieties of the form thread the caller needs to be on the same thread
         Application.Current.Dispatcher.Invoke(() => _formHook.Logger($"{sender} sent: {message}"));
@@ -83,7 +83,7 @@ public class Comunicator
         }
         catch (Exception)
         {
-            LogMessage(buffer, sender);
+            LogReceive(buffer, sender);
         }
 
     }
@@ -146,9 +146,11 @@ public class Comunicator
         }
     }
 
-    public void Send(string message)
+    public async void Send(string message)
     {
         _sendTask = Send(message, remoteEndPoint);
+        var sentBytes = await _sendTask;
+        this.LogMessage($"Sent {sentBytes} bytes to {remoteEndPoint}!\n");
     }
 
     public void Listen(IPEndPoint newEndPoint)
