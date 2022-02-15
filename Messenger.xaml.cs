@@ -3,59 +3,98 @@ using System.Net;
 using System.Numerics;
 using System.Text.RegularExpressions;
 using System.Windows;
+using System.Collections.Generic;
+using System.IO;
 
 namespace csGameIorga
 {
-    public class Move : Command
+    public abstract class ICommand
     {
+        public string Nickname;
+        public string CommandStr;
+        public string Data;
+        protected ICommand(string rawData)
+        {
+            var pattern = new Regex(@"(?<name>\w+);(?<command>\w+);(?<data>.+)", RegexOptions.IgnoreCase);
+            var matches = pattern.Matches(rawData);
+            if (matches.Count <= 0)
+                throw new InvalidDataException("Provided data could not be parsed!");
+            GroupCollection groups = matches[0].Groups;
+            this.Nickname = groups["name"].Value;
+            this.CommandStr = groups["command"].Value;
+            this.Data = groups["data"].Value;
+        }
+        protected ICommand(string nickname, string command)
+        {
+            this.Nickname = nickname;
+            this.CommandStr = command;
+            Data = ""; // should not be used as child has direct access to data
+        }
+        public abstract string Execute(Board board, Comunicator comunicator, IPEndPoint sender);
+    }
+    public class Move : ICommand
+    {
+        private static Regex dataPattern = new Regex(@"(?<x>\d+);(?<y>\d+)", RegexOptions.IgnoreCase);
         public Vector2 Coordinates;
         public Move(string rawData)
             : base(rawData)
         {
-            var pattern = new Regex(@"(?<x>\d+);(?<y>\d+)", RegexOptions.IgnoreCase);
-            foreach (Match match in pattern.Matches(rawData))
+            foreach (Match match in dataPattern.Matches(Data)) // isn't null because of the constructor used
             {
                 GroupCollection groups = match.Groups;
                 this.Coordinates = new Vector2(int.Parse(groups["x"].Value), int.Parse(groups["y"].Value));
             }
         }
+        public Move(string nickname, string command, string data)
+            : base(nickname, command)
+        {
+            foreach (Match match in dataPattern.Matches(data))
+            {
+                GroupCollection groups = match.Groups;
+                this.Coordinates = new Vector2(int.Parse(groups["x"].Value), int.Parse(groups["y"].Value));
+            }
+        }
+        public override string Execute(Board board, Comunicator comunicator, IPEndPoint sender)
+        {
+            return board.Move(this.Coordinates);
+        }
     }
-    public class Ping : Command
+    public class Ping : ICommand
     {
-        public Vector2 Coordinates;
+        private string message;
         public Ping(string rawData)
             : base(rawData)
         {
-            var pattern = new Regex(@"(?<x>\d+);(?<y>\d+)", RegexOptions.IgnoreCase);
-            foreach (Match match in pattern.Matches(rawData))
-            {
-                GroupCollection groups = match.Groups;
-                this.Coordinates = new Vector2(int.Parse(groups["x"].Value), int.Parse(groups["y"].Value));
-            }
+            message = Data;
         }
-    }
-    public class Command // TODO: update all usages of Command to match new abstractions
-    {
-        public string Nickname;
-        public string CommandStr;
-        protected string Data;
-        public Command(string rawData)
+        public Ping(string nickname, string command, string rawData)
+            :base(nickname, command)
         {
-            var pattern = new Regex(@"(?<name>\w+);(?<command>\w+);(?<data>.+)", RegexOptions.IgnoreCase);
-            foreach (Match match in pattern.Matches(rawData))
-            {
-                GroupCollection groups = match.Groups;
-                this.Nickname = groups["name"].Value;
-                this.CommandStr = groups["command"].Value;
-                this.Data = groups["data"].Value;
-            }
+            message = rawData;
+        }
+        public override string Execute(Board board, Comunicator comunicator, IPEndPoint sender)
+        {
+            var status = "";
+            comunicator.Send($"{comunicator.Nickname};PING;{message}");
+            
+            return status;
         }
     }
+
+
     /// <summary>
     /// Interaction logic for Messenger.xaml
     /// </summary>
+
     public partial class Messenger
     {
+        
+        public static Dictionary<string, Func<string, string, string, ICommand>> commandsMap = 
+            new Dictionary<string, Func<string, string, string, ICommand>>
+        {
+            ["XY"] = (nickname, command, rawData) => new Move(nickname, command, rawData),
+            ["PING"] = (nickname, command, rawData) => new Ping(nickname, command, rawData),
+        };
         private readonly Comunicator _comunicator;
         private readonly Board _board;
         public Messenger()
@@ -139,11 +178,11 @@ namespace csGameIorga
             Properties.Settings.Default.Save();
         }
 
-        public void Execute(Command command, IPEndPoint sender)
+        public void Execute(ICommand command, IPEndPoint sender)
         {
-            var status = command.Nickname != _comunicator.Nickname ? "mismatched nickname" : _board.Move(command.Coordinates);
-            Logger($"{(status.Length < 1 ? "Succeeded" : "Failed")} to run <{command.Type}> command with parameters " +
-                   $"<x:{command.Coordinates.X},y:{command.Coordinates.Y}> sent by {command.Nickname}({sender}){(status.Length < 1 ? "" : " because of <" + status + ">")}\n");
+            var status = command.Execute(_board, _comunicator, sender);
+            Logger($"{(status.Length < 1 ? "Succeeded" : "Failed")} to run <{command.CommandStr}> command with the following data: " +
+                   $"<{command.Data}> sent by {command.Nickname}({sender}){(status.Length < 1 ? "" : " because of <" + status + ">")}\n");
         }
         
         public void Logger(string message)
