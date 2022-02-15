@@ -1,16 +1,18 @@
 ﻿using System;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation; // per IPEndPoint, IPAddress, Dns
 using System.Net.Sockets;       // udb socket
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 
 namespace csGameIorga;
 
-internal class Comunicator
+public class Comunicator
 {
 
     internal IPEndPoint localEndPoint;
@@ -18,14 +20,14 @@ internal class Comunicator
     private string nick;
     internal string Nickname
     {
-        set { nick = value; _formHook.UpdateNickname(value); LogMessage($"Set nickname to {value}"); }
+        set { nick = value; _formHook.UpdateNickname(value); LogMessage($"Set nickname to {value}\n"); }
         get { return nick; }
     }
     private readonly Messenger _formHook;
     private CancellationTokenSource _listenerCts;
     private CancellationTokenSource _senderCts;
     private Task? _listenerTask;
-    private Task? _sendTask;
+    private Task<int>? _sendTask;
 
     // private readonly int _portSwitchMaxAttempts;
     // private int _portSwitchAttempts;
@@ -47,13 +49,13 @@ internal class Comunicator
         UpdateRemoteEndPoint(new IPEndPoint(IPAddress.Parse(remoteIp), remotePort));
     }
 
-    private void LogMessage(string message)
+    public void LogMessage(string message)
     {
         // In order to access proprieties of the form thread the caller needs to be on the same thread
         Application.Current.Dispatcher.Invoke(() => _formHook.Logger(message));
     }
 
-    private void LogMessage(string message, IPEndPoint sender)
+    public void LogReceive(string message, IPEndPoint sender)
     {
         // In order to access proprieties of the form thread the caller needs to be on the same thread
         Application.Current.Dispatcher.Invoke(() => _formHook.Logger($"{sender} sent: {message}"));
@@ -65,23 +67,47 @@ internal class Comunicator
         var sender = data.RemoteEndPoint;
         try
         {
-            var command = new Command(buffer);
-            _formHook.Execute(command, sender);
+            var pattern = new Regex(@"(?<name>\w+);(?<command>\w+);(?<data>.+)", RegexOptions.IgnoreCase);
+            var matches = pattern.Matches(buffer);
+            if (matches.Count <= 0) 
+                throw new InvalidDataException("Provided data could not be parsed!");
+            GroupCollection groups = matches[0].Groups;
+            var nickname = groups["name"].Value;
+            var command = groups["command"].Value;
+            var rawData = groups["data"].Value;
+            // attemps to generate a specialized ICommand using the specific generator based on the command
+            if (Messenger.commandsMap.TryGetValue(command.ToUpper(), out var generator))
+                _formHook.Execute(generator(nickname, command, rawData), sender);
+            else
+                throw new ();
         }
         catch (Exception)
         {
-            LogMessage(buffer, sender);
+            LogReceive(buffer, sender);
         }
 
     }
 
     private async Task _Send(string message)
     {
+        //var sendBuffer = Encoding.ASCII.GetBytes(message);
+        //var sendClient = new UdpClient();
+        //var sentBytes = await sendClient.SendAsync(sendBuffer, remoteEndPoint, _senderCts.Token);
+        //sendClient.Close();
+        var sentBytes = await Comunicator.Send(message, remoteEndPoint);
+        this.LogMessage($"Sent {sentBytes} bytes to {remoteEndPoint}!\n");
+    }
+    public static async Task<int> Send(string message, IPEndPoint remoteEndPoint)
+    {
+        if (string.IsNullOrEmpty(message))
+        {
+            return 0;
+        }
         var sendBuffer = Encoding.ASCII.GetBytes(message);
         var sendClient = new UdpClient();
-        var sentBytes = await sendClient.SendAsync(sendBuffer, remoteEndPoint, _senderCts.Token);
-        this.LogMessage($"Sent {sentBytes} bytes to {remoteEndPoint}!\n");
+        var sentBytes = await sendClient.SendAsync(sendBuffer, remoteEndPoint);
         sendClient.Close();
+        return sentBytes;
     }
 
     private async Task _Listen(IPEndPoint newEndPoint)
@@ -120,14 +146,11 @@ internal class Comunicator
         }
     }
 
-    public void Send(string message)
+    public async void Send(string message)
     {
-        if (string.IsNullOrEmpty(message))
-        {
-            return;
-        }
-
-        _sendTask = this._Send(message);
+        _sendTask = Send(message, remoteEndPoint);
+        var sentBytes = await _sendTask;
+        this.LogMessage($"Sent {sentBytes} bytes to {remoteEndPoint}!\n");
     }
 
     public void Listen(IPEndPoint newEndPoint)
