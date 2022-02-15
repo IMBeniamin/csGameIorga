@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using System.Windows;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading.Tasks;
 
 namespace csGameIorga
 {
@@ -52,6 +53,7 @@ namespace csGameIorga
             {
                 GroupCollection groups = match.Groups;
                 this.Coordinates = new Vector2(int.Parse(groups["x"].Value), int.Parse(groups["y"].Value));
+                Data = this.Coordinates.ToString();
             }
         }
         public override string Execute(Board board, Comunicator comunicator, IPEndPoint sender)
@@ -71,12 +73,17 @@ namespace csGameIorga
             :base(nickname, command)
         {
             message = rawData;
+            Data = rawData;
         }
         public override string Execute(Board board, Comunicator comunicator, IPEndPoint sender)
         {
             var status = "";
-            comunicator.Send($"{comunicator.Nickname};PING;{message}");
-            
+            var ep = new IPEndPoint(sender.Address, sender.Port);
+            var sendTask = Comunicator.Send($"{comunicator.Nickname};PING;{message}", ep);
+            sendTask.Wait();
+            var sentBytes = sendTask.Result;
+            if (sentBytes == 0)
+                status = "No data sent!";
             return status;
         }
     }

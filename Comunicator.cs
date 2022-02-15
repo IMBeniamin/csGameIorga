@@ -76,7 +76,7 @@ public class Comunicator
             var command = groups["command"].Value;
             var rawData = groups["data"].Value;
             // attemps to generate a specialized ICommand using the specific generator based on the command
-            if (Messenger.commandsMap.TryGetValue(command, out var generator))
+            if (Messenger.commandsMap.TryGetValue(command.ToUpper(), out var generator))
                 _formHook.Execute(generator(nickname, command, rawData), sender);
             else
                 throw new ();
@@ -99,6 +99,10 @@ public class Comunicator
     }
     public static async Task<int> Send(string message, IPEndPoint remoteEndPoint)
     {
+        if (string.IsNullOrEmpty(message))
+        {
+            return 0;
+        }
         var sendBuffer = Encoding.ASCII.GetBytes(message);
         var sendClient = new UdpClient();
         var sentBytes = await sendClient.SendAsync(sendBuffer, remoteEndPoint);
@@ -144,12 +148,7 @@ public class Comunicator
 
     public void Send(string message)
     {
-        if (string.IsNullOrEmpty(message))
-        {
-            return;
-        }
-
-        _sendTask = this._Send(message);
+        _sendTask = Send(message, remoteEndPoint);
     }
 
     public void Listen(IPEndPoint newEndPoint)
