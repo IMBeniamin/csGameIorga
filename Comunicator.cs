@@ -41,9 +41,8 @@ public class Comunicator
     private Task<int>? _sendTask;
 
     // used for loop detection on other end
-    private static readonly TimeSpan _minDeltaT = new TimeSpan(0, 0, 0, 0, 150); // minimum time that should pass between pings
+    private static readonly TimeSpan _minDeltaT = new TimeSpan(0, 0, 0, 0, 250); // minimum time that should pass between pings
     private DateTime? _lastPing;
-    private IPEndPoint? _lastInterloc;
     // private readonly int _portSwitchMaxAttempts;
     // private int _portSwitchAttempts;
 
@@ -274,15 +273,15 @@ public class Comunicator
     public bool pingFlag() { return this.flag; }
     public bool loopDetector(IPEndPoint interlocutor, out TimeSpan? t_delta)
     {
-        if (this._lastPing == null && this._lastInterloc == null)
+        if (this._lastPing == null)
         {
-            this._lastInterloc = interlocutor;
             this._lastPing = DateTime.Now;
             t_delta = null;
             return false;
         }
-        t_delta = DateTime.Now.Subtract((DateTime)this._lastPing);
+        var now = DateTime.Now;
+        t_delta = now.Subtract((DateTime)this._lastPing);
+        this._lastPing = now;
         return t_delta <= Comunicator._minDeltaT;
     }
-
 }
