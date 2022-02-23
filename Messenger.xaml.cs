@@ -31,6 +31,12 @@ namespace csGameIorga
             this.CommandStr = command;
             Data = ""; // should not be used as child has direct access to data
         }
+        protected ICommand(string nickname, string command, string rawData)
+        {
+            this.Nickname = nickname;
+            this.CommandStr = command;
+            this.Data = rawData;
+        }
         public abstract string Execute(Board board, Comunicator comunicator, IPEndPoint sender);
     }
     public class Move : ICommand
@@ -89,7 +95,7 @@ namespace csGameIorga
             };
             if (comunicator.pingFlag())
             {
-                comunicator.LogMessage($"Received ping from ({this.Nickname}){sender}! Sending response...\n");
+                comunicator.LogMessage($"Received ping from ({this.Nickname}){sender} with data: {this.Data}! Sending response...\n");
                 var ep = new IPEndPoint(sender.Address, comunicator.remoteEndPoint.Port);
                 var sendTask = Comunicator.Send($"{comunicator.Nickname};PING;{message}", ep);
                 var sentBytes = sendTask.Result;
@@ -98,7 +104,40 @@ namespace csGameIorga
             }
             else
             {
-                comunicator.LogMessage($"Received ping response from {sender}\n");
+                comunicator.LogMessage($"Received ping response from {sender} with data: {this.Data}\n");
+            }
+            return status;
+        }
+    }
+
+    public class Specchio : ICommand
+    {
+        public Specchio(string nickname, string command, string rawData)
+            :base(nickname, command, rawData)
+        {
+            
+        }
+
+        public override string Execute(Board board, Comunicator comunicator, IPEndPoint sender)
+        {
+            var status = "";
+            comunicator.LogMessage($"Received specchio from ({this.Nickname}){sender} with command: {this.CommandStr} and data: {this.Data}!\nSending response...\n");
+            var ep = new IPEndPoint(sender.Address, comunicator.remoteEndPoint.Port);
+            var sendTask = Comunicator.Send($"{comunicator.Nickname};{CommandStr};{Data}", ep);
+            var sentBytes = sendTask.Result;
+            if (sentBytes == 0) status = "No data sent!";
+            var rawData = $"{this.Nickname}, {this.CommandStr}, {this.Data}";
+            comunicator.LogMessage($"{this.Nickname}, {this.CommandStr}, {this.Data}");
+            try
+            {
+                if (Messenger.commandsMap.TryGetValue(this.CommandStr.ToUpper(), out var cGenerator))
+                {
+                    comunicator._formHook.Execute(cGenerator(this.Nickname, this.CommandStr, this.Data), sender);
+                }
+            }
+            catch (Exception)
+            {
+                comunicator.LogReceive(rawData, sender);
             }
             return status;
         }
@@ -117,6 +156,7 @@ namespace csGameIorga
         {
             ["XY"] = (nickname, command, rawData) => new Move(nickname, command, rawData),
             ["PING"] = (nickname, command, rawData) => new Ping(nickname, command, rawData),
+            ["SPECCHIO"] = (nickname, command, rawData) => new Specchio(nickname, command, rawData),
         };
         private readonly Comunicator _comunicator;
         private readonly Board _board;
